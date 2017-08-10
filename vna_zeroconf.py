@@ -38,12 +38,12 @@ def get_vna_idn(host):
     tel.close()
 
     (vendor, instr, id_, fw_rev) = idn.split(",")
-    ret = {'ip': host, 'vendor': vendor, 'instr': instr, 'id': id_, 'fw': fw_rev, 'idn': idn}
+    ret = {'ip': host, 'Manufacturer': vendor, 'instr': instr, 'id': id_, 'FirmwareVersion': fw_rev, 'IDN': idn}
 
-    if vendor == "Rohde-Schwarz":
-        ret['serial'] = id_[-6:]
-        ret['vendor'] = "Rohde & Schwarz"
-        ret['mat_no'] = "%s.%sK%s" % (id_[:4], id_[4:8], id_[8:10])
+    if vendor == "Rohde-Schwarz" or vendor == "Rohde&Schwarz":
+        ret['SerialNumber'] = id_[-6:]
+        ret['Manufacturer'] = "Rohde & Schwarz"
+        ret['MaterialNumber'] = "%s.%sK%s" % (id_[:4], id_[4:8], id_[8:10])
     else:
         ret['serial'] = id_
     return ret
@@ -58,20 +58,25 @@ def init_zeroconf():
 
 
 def register_vna_service(idn):
-    fqdn = idn['instr'].split("-")[0] + "-" + idn['serial'] + ".local."
+    fqdn = idn['instr'].split("-")[0] + "-" + idn['SerialNumber'] + ".local."
     idn['fqdn'] = fqdn
-    service_type = "_vxi11._tcp.local."
-    service_name = idn['vendor'] + " " + idn['instr'] + " #" + idn['serial'] + "." + service_type
+    service_type = "_vxi-11._tcp.local."
+    service_name = idn['Manufacturer'] + " " + idn['instr'] + " #" + idn['SerialNumber'] + "." + service_type
+    print("Registering service " + service_name)
     pprint(idn)
     for (addr, zc) in _zc_list:
         print("Registering", addr)
+        orig_ip = idn['ip']
         if idn['ip'] != "localhost" and idn['ip'] != "127.0.0.1":
             addr = idn['ip']
+        else:
+            idn['ip'] = addr
         info = ServiceInfo(service_type,
                            service_name,
                            socket.inet_aton(addr), 5025, 0, 0,
                            idn, fqdn)
         zc.register_service(info, allow_name_change=False)
+        idn['ip'] = orig_ip
 
 
 def unregister_services():
@@ -102,7 +107,6 @@ def main():
 
     init_zeroconf()
 
-    print("Registering service")
     register_vna_service(idn)
 
     input("Press enter to unregister")
